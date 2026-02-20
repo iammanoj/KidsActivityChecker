@@ -6,13 +6,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from db.database import init_db, save_session, save_activities
-from agent.graph import run_activity_tracker
+from agent.graph import build_graph
+from agent.state import AgentState
 from evals.run_evals import run_all_evals
 from ui.components import weather_card, eval_summary_sidebar
 from ui.dashboard import render_results_tab, render_eval_tab
 
 # Initialize DB on first run
 init_db()
+
+# Pipeline steps with display labels and progress weights
+PIPELINE_STEPS = [
+    ("detect_location", "Detecting location...", 0.05),
+    ("check_weather", "Checking weather...", 0.10),
+    ("search_activities", "Searching activities (7 parallel queries)...", 0.55),
+    ("rank_and_parse", "AI ranking & structuring results...", 0.80),
+    ("categorize_events", "Categorizing events...", 0.95),
+]
+STEP_LABELS = {name: (label, weight) for name, label, weight in PIPELINE_STEPS}
 
 st.set_page_config(
     page_title="Kids Activity Tracker",
@@ -65,14 +76,26 @@ run_clicked = st.sidebar.button("🔄 Find Activities", type="primary", use_cont
 
 # --- Main Content ---
 if run_clicked:
-    with st.spinner("🔍 Detecting location..."):
-        pass  # visual only, actual work below
+    # Build initial state
+    initial_state: AgentState = {"time_mode": time_mode}
+    if location_override:
+        initial_state["location"] = location_override
 
-    with st.spinner("🌤️ Checking weather & searching activities..."):
-        result = run_activity_tracker(
-            time_mode=time_mode,
-            location_override=location_override,
-        )
+    # Stream through the graph with live progress
+    graph = build_graph()
+    progress_bar = st.progress(0, text="Starting pipeline...")
+    result = initial_state
+
+    for step_output in graph.stream(initial_state):
+        # step_output is {node_name: state_update}
+        node_name = list(step_output.keys())[0]
+        result = step_output[node_name]
+
+        if node_name in STEP_LABELS:
+            label, weight = STEP_LABELS[node_name]
+            progress_bar.progress(weight, text=f"✅ {label.replace('...', ' — done!')}")
+
+    progress_bar.progress(0.97, text="📊 Running evaluations...")
 
     # Store in session state
     st.session_state["result"] = result
@@ -102,10 +125,10 @@ if run_clicked:
     st.session_state["activity_ids"] = activity_ids
 
     # Run evals
-    with st.spinner("📊 Running evaluations..."):
-        eval_results = run_all_evals(result, session_id)
-
+    eval_results = run_all_evals(result, session_id)
     st.session_state["eval_results"] = eval_results
+
+    progress_bar.progress(1.0, text="✅ All done!")
 
     # Show eval summary in sidebar
     eval_summary_sidebar(eval_results)
