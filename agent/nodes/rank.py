@@ -14,17 +14,30 @@ recommendations.
 
 For each activity, extract or infer:
 - name: Activity/event name
-- category: One of {categories}
+- category: MUST be one of: {categories}
 - location_name: Venue name
 - address: Street address (best guess from context)
-- distance_miles: Estimated distance from {city}, {state} (0-15 miles)
+- distance_miles: Estimated distance from {city}, {state} (use realistic non-round numbers like 3.7, 8.2, 11.4)
 - cost: Dollar amount (0.0 if free)
 - is_free: true/false
-- rating: Rating out of 5.0 (estimate from context clues if not explicit, use 4.0 as default)
-- rating_source: Where the rating comes from (e.g. "Google", "Yelp", "estimated")
-- age_suitability: "joint" (good for both 8 & 14), "younger" (better for 8yr), or "older" (better for 14yr)
-- why_recommended: 1-2 sentence explanation of why this is a good pick for the family
-- url: Source URL
+- rating: Rating out of 5.0
+- rating_source: CRITICAL — use the ACTUAL source of the rating (e.g. "Google", "Yelp", "TripAdvisor").
+  If the search result text mentions a specific star rating or review count, extract it and note the source.
+  If NO rating is mentioned in the text at all, set rating_source to "estimated" and use a conservative 3.8.
+  Do NOT default everything to 4.0 — vary your estimates based on the content quality signals.
+- age_suitability: "joint" (good for both 8 & 14), "younger" (better for 8yr old), or "older" (better for 14yr old)
+- why_recommended: 1-2 sentence explanation mentioning specific details (age range, group size, what makes it special)
+- url: Source URL from the search result
+
+CATEGORY DISTRIBUTION REQUIREMENT:
+You MUST spread activities across at least 4 of the 6 categories. Do NOT put everything in "Educational".
+Use the _target_category hint when available to assign the correct category.
+
+AGE DISTRIBUTION REQUIREMENT:
+You MUST include activities for ALL THREE age groups:
+- At least 2-3 activities tagged "younger" (specifically fun for the 8-year-old)
+- At least 2-3 activities tagged "older" (specifically engaging for the 14-year-old)
+- The rest can be "joint" (enjoyable for both together)
 
 RANKING PRIORITIES (apply these weights):
 1. Cost (25%): Free > cheap > expensive
@@ -45,7 +58,7 @@ IMPORTANT RULES:
 
 
 def rank_and_parse(state: dict) -> dict:
-    """Use Claude to parse raw search results into structured, ranked events."""
+    """Use LLM to parse raw search results into structured, ranked events."""
     raw_results = state.get("raw_search_results", [])
     location = state["location"]
     mode = state["mode"]
@@ -53,14 +66,26 @@ def rank_and_parse(state: dict) -> dict:
     if not raw_results:
         return {**state, "events": [], "ranked_events": []}
 
+    # Deduplicate by URL before sending to LLM
+    seen_urls = set()
+    unique_results = []
+    for r in raw_results:
+        url = r.get("url", "")
+        if url and url in seen_urls:
+            continue
+        seen_urls.add(url)
+        unique_results.append(r)
+
     # Prepare raw results text for the LLM
     results_text = ""
-    for i, r in enumerate(raw_results):
+    for i, r in enumerate(unique_results):
         results_text += f"\n--- Result {i+1} ---\n"
         results_text += f"Title: {r.get('title', 'N/A')}\n"
         results_text += f"URL: {r.get('url', 'N/A')}\n"
         results_text += f"Content: {r.get('content', 'N/A')[:500]}\n"
         results_text += f"Age query: {r.get('_age_query', 'family')}\n"
+        if r.get("_target_category"):
+            results_text += f"Target category: {r['_target_category']}\n"
 
     system = SYSTEM_PROMPT.format(
         categories=", ".join(VALID_CATEGORIES),
@@ -72,17 +97,23 @@ def rank_and_parse(state: dict) -> dict:
 Current mode: {mode.upper()} activities.
 Time: {state.get('time_mode', 'today')}.
 
+REMEMBER:
+- Spread across 4+ categories (not just Educational)
+- Include younger (8yr), older (14yr), and joint activities
+- Extract REAL ratings from the text when available; only use "estimated" when no rating data exists
+- Use realistic non-round distances (3.7, not 5.0)
+
 Raw search results:
 {results_text}
 
-Return a JSON array of activity objects, ranked best-to-worst. Include 15-20 activities if possible.
+Return a JSON array of activity objects, ranked best-to-worst. Include 15-25 activities if possible.
 Return ONLY the JSON array, no other text."""
 
     llm = ChatOpenAI(
         model="gpt-4o",
         api_key=os.getenv("OPENAI_API_KEY"),
-        temperature=0.2,
-        max_tokens=4000,
+        temperature=0.3,
+        max_tokens=6000,
     )
 
     try:

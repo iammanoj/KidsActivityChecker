@@ -117,13 +117,15 @@ class TestEndToEndPipeline:
     """Full pipeline integration test with all external calls mocked."""
 
     @patch("agent.nodes.rank.ChatOpenAI")
+    @patch("agent.nodes.search.search_by_category")
     @patch("agent.nodes.search.search_paid_events")
     @patch("agent.nodes.search.search_events")
     @patch("agent.nodes.weather.get_weather")
     @patch("agent.nodes.location.requests.get")
     def test_full_pipeline_outdoor(
-        self, mock_ip, mock_weather, mock_search, mock_paid, mock_llm_cls
+        self, mock_ip, mock_weather, mock_search, mock_paid, mock_cat, mock_llm_cls
     ):
+        mock_cat.return_value = []
         # Mock IP geolocation
         mock_ip.return_value = MagicMock(
             status_code=200,
@@ -173,13 +175,15 @@ class TestEndToEndPipeline:
             assert event["rating"] >= 3.5
 
     @patch("agent.nodes.rank.ChatOpenAI")
+    @patch("agent.nodes.search.search_by_category")
     @patch("agent.nodes.search.search_paid_events")
     @patch("agent.nodes.search.search_events")
     @patch("agent.nodes.weather.get_weather")
     def test_full_pipeline_indoor(
-        self, mock_weather, mock_search, mock_paid, mock_llm_cls
+        self, mock_weather, mock_search, mock_paid, mock_cat, mock_llm_cls
     ):
         """Test pipeline in indoor mode with location override."""
+        mock_cat.return_value = []
         mock_weather.return_value = {
             "temp_f": 50.0,
             "condition": "Rain",
@@ -228,13 +232,15 @@ class TestEndToEndPipeline:
         assert result["location"]["city"] == "Los Altos"
 
     @patch("agent.nodes.rank.ChatOpenAI")
+    @patch("agent.nodes.search.search_by_category")
     @patch("agent.nodes.search.search_paid_events")
     @patch("agent.nodes.search.search_events")
     @patch("agent.nodes.weather.get_weather")
     def test_pipeline_handles_no_search_results(
-        self, mock_weather, mock_search, mock_paid, mock_llm_cls
+        self, mock_weather, mock_search, mock_paid, mock_cat, mock_llm_cls
     ):
         """Pipeline should gracefully handle zero search results."""
+        mock_cat.return_value = []
         mock_weather.return_value = MOCK_WEATHER
         mock_search.return_value = []
         mock_paid.return_value = []
