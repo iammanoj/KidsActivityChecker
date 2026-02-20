@@ -276,7 +276,7 @@ class TestEvalIntegration:
         failed = [r for r in results if not r["passed"]]
 
         # At least 7 of 9 should pass on clean mock data
-        assert len(passed) >= 7, f"Failed evals: {[r['name'] for r in failed]}"
+        assert len(passed) >= 10, f"Failed evals: {[r['name'] for r in failed]}"
 
     def test_code_evals_on_bad_output(self):
         """Code evals should catch issues in malformed output."""

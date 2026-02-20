@@ -61,10 +61,12 @@ class TestRunLLMJudge:
     def test_successful_judge_run(self, mock_llm_cls):
         """Test with mocked GPT-4o response."""
         judge_response = {
-            "relevance": {"score": 4, "reasoning": "Good"},
-            "age_appropriateness": {"score": 5, "reasoning": "Great"},
-            "diversity": {"score": 3, "reasoning": "OK"},
-            "description_quality": {"score": 4, "reasoning": "Good"},
+            "relevance": {"score": 4, "reasoning": "Good match"},
+            "age_appropriateness": {"score": 5, "reasoning": "Great for both ages"},
+            "diversity": {"score": 3, "reasoning": "OK variety"},
+            "girl_friendly_appeal": {"score": 4, "reasoning": "Good options for girls"},
+            "social_collaborative": {"score": 4, "reasoning": "Several group activities"},
+            "description_quality": {"score": 4, "reasoning": "Helpful descriptions"},
             "overall_score": 4.0,
             "summary": "Solid recommendations.",
         }

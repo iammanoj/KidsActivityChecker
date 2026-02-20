@@ -75,15 +75,24 @@ def render_eval_tab(eval_results: dict):
     breakdown = llm_judge.get("breakdown", {})
 
     if breakdown:
-        cols = st.columns(4)
-        criteria = ["relevance", "age_appropriateness", "diversity", "description_quality"]
-        labels = ["Relevance", "Age Fit", "Diversity", "Descriptions"]
+        row1 = st.columns(3)
+        row2 = st.columns(3)
+        criteria = [
+            "relevance", "age_appropriateness", "diversity",
+            "girl_friendly_appeal", "social_collaborative", "description_quality",
+        ]
+        labels = [
+            "Relevance", "Age Fit", "Diversity",
+            "Girl-Friendly", "Social/Collab", "Descriptions",
+        ]
+        all_cols = row1 + row2
 
-        for col, criterion, label in zip(cols, criteria, labels):
+        for col, criterion, label in zip(all_cols, criteria, labels):
             data = breakdown.get(criterion, {})
             score = data.get("score", 0) if isinstance(data, dict) else 0
+            reasoning = data.get("reasoning", "") if isinstance(data, dict) else ""
             with col:
-                st.metric(label, f"{score}/5")
+                st.metric(label, f"{score}/5", help=reasoning)
 
         st.markdown(f"**Overall Score: {llm_judge.get('score', 0):.1f}/5**")
         summary = breakdown.get("summary", "")
